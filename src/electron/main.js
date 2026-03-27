@@ -90,40 +90,6 @@ function closeSlintComponent() {
   slintProc = null;
 }
 
-// ─── Scan helpers (shared between lifecycle hooks and IPC) ────────────────────
-
-/**
- * Start the continuous NFC scan loop and notify the renderer.
- * Safe to call even if a scan is already running (restarts cleanly).
- */
-function activateScan() {
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('scan:status', { scanning: true });
-  }
-  pm3.startContinuousScan(
-    (result) => {
-      if (win && !win.isDestroyed()) win.webContents.send('scan:result', { ok: true, data: result });
-    },
-    (err) => {
-      if (win && !win.isDestroyed()) win.webContents.send('scan:result', {
-        ok: false,
-        error: err && err.message ? err.message : String(err),
-        code: err && err.code ? err.code : undefined
-      });
-    }
-  );
-}
-
-/**
- * Stop the continuous NFC scan loop and notify the renderer.
- */
-function deactivateScan() {
-  pm3.stopContinuousScan();
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('scan:status', { scanning: false });
-  }
-}
-
 function createWindow() {
   win = new BrowserWindow({
     width: winWidth,
@@ -154,21 +120,10 @@ function createWindow() {
     if (!win || win.isDestroyed()) return;
     win.webContents.send('pm3:log', msg);
   });
-
-  // ── Continuous scan lifecycle ────────────────────────────────────────────
-  // Start scanning when the window gains focus; pause when it loses focus
-  // to preserve battery and release serial-port resources.
-
-  win.on('focus', activateScan);
-  win.on('blur',  deactivateScan);
-
-  // Auto-start scan once the page is loaded
-  win.webContents.on('did-finish-load', activateScan);
 }
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => {
-  pm3.stopContinuousScan();
   closeSlintComponent();
   app.quit();
 });
@@ -177,10 +132,6 @@ app.on('window-all-closed', () => {
 
 function wrap(fn) {
   return async (...args) => {
-    // Pause the auto-scan loop and wait for any in-flight scan tick to
-    // finish before the manual operation touches the serial port.
-    // This prevents "serial port is claimed by another process" errors.
-    await pm3.beginManualOp();
     try {
       return { ok: true, data: await fn(...args) };
     } catch (e) {
@@ -192,8 +143,6 @@ function wrap(fn) {
       if (typeof e?.code !== 'undefined') payload.code = e.code;
       if (process.argv.includes('--dev') && e?.stack) payload.stack = e.stack;
       return payload;
-    } finally {
-      pm3.endManualOp();
     }
   };
 }
@@ -204,17 +153,6 @@ ipcMain.handle('pm3:split',  wrap((_, content) => pm3.splitIntoChunks(content)))
 ipcMain.handle('pm3:write',  wrap((_, content, idx = 0, total = 1) =>
   pm3.writeCard(content, idx, total)
 ));
-
-// Manual scan control from renderer
-ipcMain.handle('pm3:startScan', () => {
-  activateScan();
-  return { ok: true };
-});
-
-ipcMain.handle('pm3:stopScan', () => {
-  deactivateScan();
-  return { ok: true };
-});
 
 // Slint component control
 ipcMain.handle('slint:run', (_, code) => {

@@ -6,26 +6,10 @@ contextBridge.exposeInMainWorld('pm3', {
   wipe:   ()             => ipcRenderer.invoke('pm3:wipe'),
   split:  (content)      => ipcRenderer.invoke('pm3:split', content),
 
-  // Continuous scan control
-  startScan: ()          => ipcRenderer.invoke('pm3:startScan'),
-  stopScan:  ()          => ipcRenderer.invoke('pm3:stopScan'),
-
   onLog:  (cb)           => {
     const handler = (_, msg) => cb(msg);
     ipcRenderer.on('pm3:log', handler);
     return () => ipcRenderer.removeListener('pm3:log', handler);
-  },
-
-  // Continuous scan events from the main process
-  onScanStatus: (cb) => {
-    const handler = (_, status) => cb(status);
-    ipcRenderer.on('scan:status', handler);
-    return () => ipcRenderer.removeListener('scan:status', handler);
-  },
-  onScanResult: (cb) => {
-    const handler = (_, result) => cb(result);
-    ipcRenderer.on('scan:result', handler);
-    return () => ipcRenderer.removeListener('scan:result', handler);
   }
 });
 

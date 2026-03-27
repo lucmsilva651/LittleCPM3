@@ -607,58 +607,6 @@ body {
   border-color: var(--red-dim);
   color: var(--red);
 }
-/* ── NFC Scan indicator ─────────────────────────────── */
-.scan-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  transition: opacity 0.3s;
-}
-
-.scan-indicator.active .scan-label {
-  color: var(--green);
-}
-
-.scan-indicator.paused {
-  opacity: 0.45;
-}
-
-.scan-indicator.error .scan-label {
-  color: var(--red);
-}
-
-/* Pulsing dot shown during active scanning */
-.scan-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  flex-shrink: 0;
-  transition: background 0.3s;
-}
-
-.scan-indicator.active .scan-dot {
-  background: var(--green);
-  animation: scan-pulse 1.6s ease-in-out infinite;
-}
-
-.scan-indicator.error .scan-dot {
-  background: var(--red);
-}
-
-@keyframes scan-pulse {
-  0%, 100% { opacity: 1; transform: scale(1);   }
-  50%       { opacity: 0.4; transform: scale(0.75); }
-}
-
 /* ── Slint overlay ──────────────────────────────────── */
 .slint-overlay {
   position: fixed;

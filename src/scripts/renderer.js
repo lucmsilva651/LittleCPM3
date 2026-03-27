@@ -8,8 +8,6 @@ const MAX_BYTES = 720;
 let currentTab = 'editor';
 
 // ── Scan state ────────────────────────────────────────────────────────────────
-/** Whether the continuous NFC scan loop is currently active. */
-let _scanning = false;
 /** Whether a Slint component window is currently open. */
 let _slintRunning = false;
 
@@ -64,27 +62,6 @@ function setIdle() {
   _btns.forEach(b => b.disabled = false);
 }
 
-// ─── NFC scan indicator ───────────────────────────────────────────────────────
-
-/**
- * Update the scan indicator in the sidebar.
- * @param {'active'|'paused'|'error'|'off'} state
- * @param {string} [label]  Optional label override.
- */
-function setScanIndicator(state, label) {
-  if (!_scanIndicator) return;
-  _scanIndicator.classList.remove('active', 'paused', 'error');
-  if (state !== 'off') _scanIndicator.classList.add(state);
-
-  const defaultLabels = {
-    active: 'Scanning for NFC card…',
-    paused: 'Scan paused (background)',
-    error:  'NFC device unavailable',
-    off:    'Auto-scan off'
-  };
-  if (_scanLabel) _scanLabel.textContent = label || defaultLabels[state] || '';
-}
-
 // ─── Slint content detection ──────────────────────────────────────────────────
 
 /**
@@ -122,62 +99,6 @@ function setSlintStatus(msg, type = '') {
   if (!_slintStatusMsg) return;
   _slintStatusMsg.textContent = msg;
   _slintStatusMsg.className = 'slint-status-msg' + (type ? ` ${type}` : '');
-}
-
-// ─── Scan result handler ──────────────────────────────────────────────────────
-
-/**
- * Process a result delivered by the continuous scan loop.
- * Called both for successful reads and for errors.
- *
- * @param {{ ok: boolean, data?: object, error?: string, code?: string }} res
- */
-async function handleScanResult(res) {
-  if (!res.ok) {
-    const code = res.code;
-    if (code === 'NO_DEVICE') {
-      // Proxmark3 not connected — update indicator but don't log repeatedly
-      setScanIndicator('error', 'Proxmark3 not found');
-      return;
-    }
-    setScanIndicator('active'); // restore active state after error
-    const msg = explainPm3Error(res.error);
-    log('✗ [scan] ' + msg, 'error');
-    toast(msg, 'error');
-    return;
-  }
-
-  // Successful card read
-  const data = res.data;
-  updateCardInfo(data);
-  updateRuntimeLabels(data);
-
-  const { content, chunkIndex, totalChunks, payloadSize, blank } = data;
-
-  if (blank) {
-    log('✓ [scan] Blank card detected (no PM3C metadata)', 'info');
-    toast('Blank card — write content to initialize.', 'info');
-    setStatus('ok', 'blank card');
-    _editor.value = '';
-    updateByteCount('');
-    return;
-  }
-
-  _editor.value = content;
-  _chunkIndex.value = chunkIndex;
-  _chunkTotal.value = totalChunks;
-  updateByteCount(content);
-  if (currentTab === 'hex') renderHex(content);
-
-  log(`✓ [scan] Read ${payloadSize}B — chunk ${chunkIndex + 1}/${totalChunks}`, 'ok');
-  toast(`Card read: ${payloadSize} bytes`, 'ok');
-  setStatus('ok', 'read ok');
-
-  // ── Check for Slint code and execute it ──────────────────────────────────
-  if (looksLikeSlint(content)) {
-    log('[scan] Slint code detected on card — launching component…', 'action');
-    await launchSlintFromContent(content);
-  }
 }
 
 /**
@@ -361,13 +282,13 @@ function bindUiActions() {
   if (btnWipe)  btnWipe.addEventListener('click', doWipe);
   if (btnSplit) btnSplit.addEventListener('click', doSplit);
 
-  // Close the Slint window and return to scanning
+  // Close the Slint window
   if (btnSlintClose) btnSlintClose.addEventListener('click', async () => {
     if (window.slint) await window.slint.close();
     setSlintOverlay(false);
     setSlintStatus('');
     _slintRunning = false;
-    log('[slint] Component closed — returning to NFC scan mode.', 'info');
+    log('[slint] Component closed.', 'info');
   });
 
   if (tabEditor) tabEditor.addEventListener('click', () => setTab('editor', tabEditor));
@@ -407,6 +328,12 @@ async function doRead() {
   setStatus('ok', 'read ok');
   log(`✓ Read ${payloadSize}B — chunk ${chunkIndex + 1}/${totalChunks}`, 'ok');
   toast(`Read ${payloadSize} bytes`, 'ok');
+
+  // Check for Slint code and execute it
+  if (looksLikeSlint(content)) {
+    log('[slint] Slint code detected on card — launching component…', 'action');
+    await launchSlintFromContent(content);
+  }
 }
 
 async function doWrite() {
@@ -531,10 +458,6 @@ const _appName     = document.getElementById('appName');
 const _tabs        = document.querySelectorAll('.tab');
 const _btns        = document.querySelectorAll('.btn');
 
-// Scan indicator elements
-const _scanIndicator = document.getElementById('scan-indicator');
-const _scanLabel     = document.getElementById('scan-label');
-
 // Slint overlay elements
 const _slintOverlay   = document.getElementById('slint-overlay');
 const _slintStatusMsg = document.getElementById('slint-status-msg');
@@ -553,11 +476,10 @@ _appName.textContent = appName;
 log(`${appName} ready.`, 'info');
 updateRuntimeLabels(null);
 log('Ctrl+D = Read · Ctrl+R = Read · Ctrl+S = Write', 'info');
-log('NFC auto-scan: active — approach a MIFARE card to the Proxmark3 antenna.', 'info');
 bindUiActions();
 syncEditorLineScroll();
 
-// ── Subscribe to continuous scan events ──────────────────────────────────────
+// ── Subscribe to events ───────────────────────────────────────────────────────
 const cleanupFns = [];
 
 if (window.pm3) {
@@ -566,30 +488,13 @@ if (window.pm3) {
       if (typeof msg === 'string' && msg.trim()) log(msg, 'info');
     }));
   }
-
-  if (typeof window.pm3.onScanStatus === 'function') {
-    cleanupFns.push(window.pm3.onScanStatus((status) => {
-      _scanning = !!status.scanning;
-      if (_scanning) {
-        setScanIndicator('active');
-      } else {
-        setScanIndicator('paused');
-      }
-    }));
-  }
-
-  if (typeof window.pm3.onScanResult === 'function') {
-    cleanupFns.push(window.pm3.onScanResult((res) => {
-      handleScanResult(res);
-    }));
-  }
 }
 
 // ── Subscribe to Slint status events ─────────────────────────────────────────
 if (window.slint && typeof window.slint.onStatus === 'function') {
   cleanupFns.push(window.slint.onStatus((status) => {
     if (status.state === 'running') {
-      setSlintStatus('Slint component is running in a separate window.\nClose that window or click the button below to return to scanning.', 'running');
+      setSlintStatus('Slint component is running in a separate window.\nClose that window or click the button below to dismiss this panel.', 'running');
     } else if (status.state === 'error') {
       setSlintStatus('Error: ' + (status.message || 'unknown Slint error'), 'error');
       log('✗ [slint] ' + (status.message || 'unknown error'), 'error');
@@ -603,10 +508,6 @@ if (window.slint && typeof window.slint.onStatus === 'function') {
     }
   }));
 }
-
-// Initialise the scan indicator as active (the main process starts scanning
-// automatically after the page loads via the did-finish-load event).
-setScanIndicator('active');
 
 window.addEventListener('beforeunload', () => {
   cleanupFns.forEach(fn => { if (typeof fn === 'function') fn(); });
