@@ -70,6 +70,13 @@
 
         <div class="sidebar-section">
           <div class="sidebar-label">Actions</div>
+
+          <!-- NFC Scan indicator: shown when automatic scanning is active -->
+          <div id="scan-indicator" class="scan-indicator" title="Automatic NFC scanning is active">
+            <span class="scan-dot" id="scan-dot"></span>
+            <span class="scan-label" id="scan-label">Scanning for NFC card…</span>
+          </div>
+
           <div class="btn-list">
             <div class="side-btn">
               <button class="btn primary" id="btn-read">
@@ -177,6 +184,28 @@
         </div>
 
         <div id="log-panel"></div>
+      </div>
+    </div>
+
+    <!-- Slint overlay: shown while a Slint component (from NFC) is running -->
+    <div id="slint-overlay" class="slint-overlay" aria-hidden="true">
+      <div class="slint-overlay-card">
+        <div class="slint-overlay-header">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="2" width="20" height="20" rx="2"/>
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+          </svg>
+          <span class="slint-overlay-title">Slint Component — NFC Card</span>
+        </div>
+        <div id="slint-overlay-body" class="slint-overlay-body">
+          <div id="slint-status-msg" class="slint-status-msg"></div>
+        </div>
+        <div class="slint-overlay-actions">
+          <button class="btn danger" id="btn-slint-close">
+            <span class="btn-icon">✕</span> Close &amp; Return to Scanning
+          </button>
+        </div>
       </div>
     </div>
 

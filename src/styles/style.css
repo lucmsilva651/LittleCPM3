@@ -607,3 +607,132 @@ body {
   border-color: var(--red-dim);
   color: var(--red);
 }
+/* ── NFC Scan indicator ─────────────────────────────── */
+.scan-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  transition: opacity 0.3s;
+}
+
+.scan-indicator.active .scan-label {
+  color: var(--green);
+}
+
+.scan-indicator.paused {
+  opacity: 0.45;
+}
+
+.scan-indicator.error .scan-label {
+  color: var(--red);
+}
+
+/* Pulsing dot shown during active scanning */
+.scan-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+  transition: background 0.3s;
+}
+
+.scan-indicator.active .scan-dot {
+  background: var(--green);
+  animation: scan-pulse 1.6s ease-in-out infinite;
+}
+
+.scan-indicator.error .scan-dot {
+  background: var(--red);
+}
+
+@keyframes scan-pulse {
+  0%, 100% { opacity: 1; transform: scale(1);   }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* ── Slint overlay ──────────────────────────────────── */
+.slint-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.slint-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.slint-overlay-card {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  width: 420px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+
+.slint-overlay-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.slint-overlay-title {
+  flex: 1;
+}
+
+.slint-overlay-body {
+  padding: 16px 18px;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slint-status-msg {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.slint-status-msg.running {
+  color: var(--green);
+}
+
+.slint-status-msg.error {
+  color: var(--red);
+}
+
+.slint-overlay-actions {
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+}

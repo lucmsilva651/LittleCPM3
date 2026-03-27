@@ -749,6 +749,114 @@ function splitIntoChunks(content) {
   return chunks;
 }
 
+// ─── Continuous NFC scanning ──────────────────────────────────────────────────
+
+/** Active polling timer handle (null when not scanning). */
+let _scanTimer = null;
+
+/** Whether a full readCard() is currently in progress during scan. */
+let _scanReading = false;
+
+/**
+ * Perform a lightweight card-presence check using `hf search`.
+ * Returns true when any HF tag is detected, without fully reading it.
+ *
+ * @param {string} port  Serial port path.
+ * @returns {Promise<boolean>}
+ */
+async function scanForCardPresence(port) {
+  try {
+    const { out } = await runPm3Raw('hf search', port, 8000);
+    const lower = out.toLowerCase();
+    // hf search prints a UID line when a card is present
+    return lower.includes('uid') || lower.includes('atqa') || lower.includes('mifare');
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Start continuous NFC polling.  The loop runs every `intervalMs`
+ * milliseconds: it checks for a card via a lightweight hf-search, and
+ * when a card is found it performs a full readCard() and delivers the
+ * result to `onResult`.
+ *
+ * The loop is automatically paused while a read is already in progress.
+ *
+ * @param {(result: object) => void} onResult  Called with the readCard() result on success.
+ * @param {(err: Error) => void}     onError   Called when an error occurs (port not found, etc.).
+ * @param {number} [intervalMs=4000]  Polling interval in milliseconds.
+ */
+function startContinuousScan(onResult, onError, intervalMs = 4000) {
+  // Cancel any existing scan loop before starting a new one
+  stopContinuousScan();
+
+  emitLog('[scan] continuous NFC scan started');
+
+  const tick = async () => {
+    if (_scanReading) return; // Don't overlap with an in-progress read
+
+    let port;
+    try {
+      port = detectPort();
+    } catch (err) {
+      // Proxmark3 not connected — notify caller but keep the loop alive
+      // so it can recover when the device is plugged in later.
+      if (typeof onError === 'function') {
+        onError(Object.assign(err, { code: 'NO_DEVICE' }));
+      }
+      return;
+    }
+
+    let present = false;
+    try {
+      present = await scanForCardPresence(port);
+    } catch (err) {
+      // Transient hardware error — skip this tick silently
+      emitLog(`[scan] presence check error: ${err.message}`);
+      return;
+    }
+
+    if (!present) return;
+
+    // A card was detected — pause the loop and do a full read
+    _scanReading = true;
+    emitLog('[scan] card detected — performing full read');
+
+    try {
+      const result = await readCard();
+      if (typeof onResult === 'function') onResult(result);
+    } catch (err) {
+      emitLog(`[scan] read error: ${err.message}`);
+      if (typeof onError === 'function') onError(err);
+    } finally {
+      _scanReading = false;
+    }
+  };
+
+  // Run the first tick after a short delay so the caller has time to
+  // update the UI before the first presence check starts.
+  _scanTimer = setTimeout(function loop() {
+    tick().finally(() => {
+      // Re-schedule only if the scan has not been stopped in the meantime
+      if (_scanTimer !== null) {
+        _scanTimer = setTimeout(loop, intervalMs);
+      }
+    });
+  }, 500);
+}
+
+/**
+ * Stop the continuous NFC polling loop.
+ */
+function stopContinuousScan() {
+  if (_scanTimer !== null) {
+    clearTimeout(_scanTimer);
+    _scanTimer = null;
+    emitLog('[scan] continuous NFC scan stopped');
+  }
+}
+
 module.exports = {
   MAX_PAYLOAD_BYTES,
   DATA_BLOCKS,
@@ -757,5 +865,7 @@ module.exports = {
   readCard,
   writeCard,
   wipeCard,
-  splitIntoChunks
+  splitIntoChunks,
+  startContinuousScan,
+  stopContinuousScan
 };
