@@ -432,7 +432,7 @@ body {
   font-family: var(--mono);
   font-size: 13px;
   line-height: 1.7;
-  padding: 5px;
+  padding: 5px 10px;
   tab-size: 2;
   caret-color: var(--amber);
 }
