@@ -21,35 +21,30 @@ function now() {
 }
 
 function log(msg, type = 'info') {
-  const panel = document.getElementById('log-panel');
   const entry = document.createElement('div');
   entry.className = 'log-entry';
   entry.innerHTML = `<span class="log-time">${now()}</span><span class="log-msg ${type}">${msg}</span>`;
-  panel.appendChild(entry);
-  panel.scrollTop = panel.scrollHeight;
+  _logPanel.appendChild(entry);
+  _logPanel.scrollTop = _logPanel.scrollHeight;
   // Keep last 120 lines
-  while (panel.children.length > 120) panel.removeChild(panel.firstChild);
+  while (_logPanel.children.length > 120) _logPanel.removeChild(_logPanel.firstChild);
 }
 
 function toast(msg, type = 'info', ms = 2800) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `show ${type}`;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.className = '', ms);
+  _toast.textContent = msg;
+  _toast.className = `show ${type}`;
+  clearTimeout(_toast._t);
+  _toast._t = setTimeout(() => _toast.className = '', ms);
 }
 
 function setOverlay(visible, msg = 'Working...') {
-  const el = document.getElementById('overlay');
-  document.getElementById('overlay-msg').textContent = msg;
-  el.classList.toggle('visible', visible);
+  _overlayMsg.textContent = msg;
+  _overlay.classList.toggle('visible', visible);
 }
 
 function setStatus(state, text) {
-  const dot = document.getElementById('status-dot');
-  const textEl = document.getElementById('status-text');
-  if (dot) dot.className = `dot ${state}`;
-  if (textEl) textEl.textContent = text;
+  if (_statusDot) _statusDot.className = `dot ${state}`;
+  if (_statusText) _statusText.textContent = text;
 }
 
 function setBusy(msg) {
@@ -86,11 +81,11 @@ function explainPm3Error(errText) {
 
 function setTab(name, btn) {
   currentTab = name;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  _tabs.forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('pane-editor').style.display = name === 'editor' ? 'flex' : 'none';
-  document.getElementById('pane-hex').style.display    = name === 'hex'    ? 'flex' : 'none';
-  if (name === 'hex') renderHex(document.getElementById('editor').value);
+  _paneEditor.style.display = name === 'editor' ? 'flex' : 'none';
+  _paneHex.style.display    = name === 'hex'    ? 'flex' : 'none';
+  if (name === 'hex') renderHex(_editor.value);
 }
 
 // ─── Storage bar & byte counter ───────────────────────────────────────────────
@@ -98,51 +93,36 @@ function setTab(name, btn) {
 function updateByteCount(str) {
   const n = byteLen(str);
   const pct = Math.min((n / MAX_BYTES) * 100, 100);
-  const fill = document.getElementById('storage-fill');
-  fill.style.width = pct + '%';
-  fill.classList.toggle('full', n >= MAX_BYTES);
+  _storageFill.style.width = pct + '%';
+  _storageFill.classList.toggle('full', n >= MAX_BYTES);
 
-  const el = document.getElementById('byte-count');
-  el.textContent = `${n} / ${MAX_BYTES} B`;
-  el.className = 'byte-count' + (n > MAX_BYTES ? ' over' : n > MAX_BYTES * 0.8 ? ' warn' : '');
+  _byteCount.textContent = `${n} / ${MAX_BYTES} B`;
+  _byteCount.className = 'byte-count' + (n > MAX_BYTES ? ' over' : n > MAX_BYTES * 0.8 ? ' warn' : '');
 
-  document.getElementById('used-bytes').textContent = n;
-  document.getElementById('total-bytes').textContent = MAX_BYTES;
-  document.getElementById('pct-text').textContent = Math.round(pct) + '%';
+  _usedBytes.textContent = n;
+  _totalBytes.textContent = MAX_BYTES;
+  _pctText.textContent = Math.round(pct) + '%';
 
   updateLineNumbers(str);
 }
 
 function updateLineNumbers(str) {
-  const lines = document.getElementById('editor-lines');
   const total = Math.max(1, String(str).split('\n').length);
   const numbers = Array.from({ length: total }, (_, i) => String(i + 1)).join('\n');
-  if (lines.textContent !== numbers) {
-    lines.textContent = numbers;
+  if (_editorLines.textContent !== numbers) {
+    _editorLines.textContent = numbers;
   }
 }
 
 function syncEditorLineScroll() {
-  const editor = document.getElementById('editor');
-  const lines = document.getElementById('editor-lines');
-  lines.style.transform = `translateY(${-editor.scrollTop}px)`;
+  _editorLines.style.transform = `translateY(${-_editor.scrollTop}px)`;
 }
-
-document.getElementById('editor').addEventListener('input', e => {
-  updateByteCount(e.target.value);
-  if (currentTab === 'hex') renderHex(e.target.value);
-});
-
-document.getElementById('editor').addEventListener('scroll', () => {
-  syncEditorLineScroll();
-});
 
 // ─── Hex renderer ─────────────────────────────────────────────────────────────
 
 function renderHex(str) {
-  const view = document.getElementById('hex-view');
   if (!str) {
-    view.innerHTML = '<span class="hex-empty">No content — write something in the Editor tab.</span>';
+    _hexView.innerHTML = '<span class="hex-empty">No content — write something in the Editor tab.</span>';
     return;
   }
   const bytes = _enc.encode(str);
@@ -150,41 +130,47 @@ function renderHex(str) {
   for (let i = 0; i < bytes.length; i += 16) {
     const row = bytes.slice(i, i + 16);
     const addr = i.toString(16).padStart(4, '0');
-    const hexPart = Array.from(row).map(b => b.toString(16).padStart(2, '0')).join(' ').padEnd(47, ' ');
-    const asciiPart = Array.from(row).map(b => (b >= 0x20 && b < 0x7f) ? String.fromCharCode(b) : '·').join('');
+    let hexPart = '';
+    let asciiPart = '';
+    for (let j = 0; j < row.length; j++) {
+      const b = row[j];
+      if (j > 0) hexPart += ' ';
+      hexPart += b.toString(16).padStart(2, '0');
+      asciiPart += (b >= 0x20 && b < 0x7f) ? String.fromCharCode(b) : '·';
+    }
+    hexPart = hexPart.padEnd(47, ' ');
     html += `<div class="hex-row">
       <span class="hex-addr">${addr}</span>
       <span class="hex-bytes">${hexPart}</span>
       <span class="hex-ascii">${asciiPart}</span>
     </div>`;
   }
-  view.innerHTML = html;
+  _hexView.innerHTML = html;
 }
 
 // ─── Card info panel ──────────────────────────────────────────────────────────
 
 function updateCardInfo(data) {
-  document.getElementById('info-port').textContent   = data.port   || '—';
-  document.getElementById('info-uid').textContent    = data.uid    || '—';
-  document.getElementById('info-status').textContent = data.hasData ? 'has data' : 'empty';
-  document.getElementById('info-status').className   = 'info-val ' + (data.hasData ? 'amber' : 'green');
+  _infoPort.textContent   = data.port   || '—';
+  _infoUid.textContent    = data.uid    || '—';
+  _infoStatus.textContent = data.hasData ? 'has data' : 'empty';
+  _infoStatus.className   = 'info-val ' + (data.hasData ? 'amber' : 'green');
 
   if (data.meta) {
     const ci = data.meta.chunkIndex;
     const ct = data.meta.totalChunks;
-    document.getElementById('info-chunk').textContent = `${ci + 1} / ${ct}`;
+    _infoChunk.textContent = `${ci + 1} / ${ct}`;
   } else {
-    document.getElementById('info-chunk').textContent = '—';
+    _infoChunk.textContent = '—';
   }
 
   // Update storage bar from card data
   const used = data.usedBytes || 0;
   const pct  = Math.min((used / MAX_BYTES) * 100, 100);
-  const fill = document.getElementById('storage-fill');
-  fill.style.width = pct + '%';
-  fill.classList.toggle('full', used >= MAX_BYTES);
-  document.getElementById('used-bytes').textContent = used;
-  document.getElementById('pct-text').textContent = Math.round(pct) + '%';
+  _storageFill.style.width = pct + '%';
+  _storageFill.classList.toggle('full', used >= MAX_BYTES);
+  _usedBytes.textContent = used;
+  _pctText.textContent = Math.round(pct) + '%';
 }
 
 function runtimePlatformLabel() {
@@ -196,15 +182,13 @@ function runtimePlatformLabel() {
 }
 
 function updateRuntimeLabels(data) {
-  const cardTypeEl = document.getElementById('runtime-card-type');
-  const envEl = document.getElementById('runtime-env-label');
   const cardType = data && data.cardType ? data.cardType : 'Waiting for card...';
   const device = data && data.deviceLabel ? data.deviceLabel : 'Proxmark3';
   const port = data && data.port ? data.port : 'no-port';
   const osLabel = runtimePlatformLabel();
 
-  if (cardTypeEl) cardTypeEl.textContent = cardType;
-  if (envEl) {
+  if (_cardTypeEl) _cardTypeEl.textContent = cardType;
+  if (_envEl) {
     const lowerDevice = String(device).toLowerCase();
     const lowerPort = String(port).toLowerCase();
     const hasPortInDevice = lowerPort !== 'no-port' && lowerDevice.includes(lowerPort);
@@ -212,7 +196,7 @@ function updateRuntimeLabels(data) {
     const parts = [`${MAX_BYTES} B/card`, device];
     if (!hasPortInDevice && lowerPort !== 'no-port') parts.push(port);
     parts.push(osLabel);
-    envEl.textContent = parts.join(' · ');
+    _envEl.textContent = parts.join(' · ');
   }
 }
 
@@ -250,9 +234,9 @@ async function doRead() {
   const { content, chunkIndex, totalChunks, payloadSize, blank } = res.data;
   updateCardInfo(res.data);
   updateRuntimeLabels(res.data);
-  document.getElementById('editor').value = content;
-  document.getElementById('chunk-index').value = chunkIndex;
-  document.getElementById('chunk-total').value = totalChunks;
+  _editor.value = content;
+  _chunkIndex.value = chunkIndex;
+  _chunkTotal.value = totalChunks;
   updateByteCount(content);
   if (currentTab === 'hex') renderHex(content);
 
@@ -269,7 +253,7 @@ async function doRead() {
 }
 
 async function doWrite() {
-  const content = document.getElementById('editor').value;
+  const content = _editor.value;
   if (!content.trim()) { toast('Nothing to write.', 'error'); return; }
   const n = byteLen(content);
   if (n > MAX_BYTES) {
@@ -277,8 +261,8 @@ async function doWrite() {
     log(`✗ Content too large: ${n}B > ${MAX_BYTES}B`, 'error');
     return;
   }
-  const chunkIndex = parseInt(document.getElementById('chunk-index').value) || 0;
-  const chunkTotal = parseInt(document.getElementById('chunk-total').value) || 1;
+  const chunkIndex = parseInt(_chunkIndex.value) || 0;
+  const chunkTotal = parseInt(_chunkTotal.value) || 1;
   setBusy('Writing to card... This may take long depending on the card.');
   log(`Writing ${n}B (chunk ${chunkIndex + 1}/${chunkTotal})...`, 'action');
   const res = await window.pm3.write(content, chunkIndex, chunkTotal);
@@ -308,14 +292,14 @@ async function doWipe() {
     toast(msg, 'error');
     return;
   }
-  document.getElementById('info-status').textContent = 'empty';
-  document.getElementById('info-chunk').textContent = '—';
-  document.getElementById('storage-fill').style.width = '0%';
-  document.getElementById('used-bytes').textContent = '0';
-  document.getElementById('pct-text').textContent = '0%';
-  document.getElementById('editor').value = '';
-  document.getElementById('chunk-index').value = 0;
-  document.getElementById('chunk-total').value = 1;
+  _infoStatus.textContent = 'empty';
+  _infoChunk.textContent = '—';
+  _storageFill.style.width = '0%';
+  _usedBytes.textContent = '0';
+  _pctText.textContent = '0%';
+  _editor.value = '';
+  _chunkIndex.value = 0;
+  _chunkTotal.value = 1;
   updateByteCount('');
   if (currentTab === 'hex') renderHex('');
   setStatus('ok', 'wiped');
@@ -324,7 +308,7 @@ async function doWipe() {
 }
 
 async function doSplit() {
-  const content = document.getElementById('editor').value;
+  const content = _editor.value;
   if (!content.trim()) { toast('Nothing to split.', 'error'); return; }
   const n = byteLen(content);
   if (n <= MAX_BYTES) {
@@ -340,9 +324,9 @@ async function doSplit() {
   log(`Split into ${chunks.length} chunks of ~${MAX_BYTES}B each`, 'action');
   log('Load each chunk into the editor, set Card index, and write one card at a time.', 'info');
   // Load first chunk, set totals
-  document.getElementById('editor').value = chunks[0];
-  document.getElementById('chunk-index').value = 0;
-  document.getElementById('chunk-total').value = chunks.length;
+  _editor.value = chunks[0];
+  _chunkIndex.value = 0;
+  _chunkTotal.value = chunks.length;
   updateByteCount(chunks[0]);
   toast(`Split into ${chunks.length} cards. Card 1 loaded.`, 'ok');
   // Store chunks for navigation
@@ -362,10 +346,45 @@ document.addEventListener('keydown', e => {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 // Module scripts are deferred — DOM is fully parsed before this runs.
 
-const _btns = document.querySelectorAll('.btn');
+const _logPanel    = document.getElementById('log-panel');
+const _toast       = document.getElementById('toast');
+const _overlay     = document.getElementById('overlay');
+const _overlayMsg  = document.getElementById('overlay-msg');
+const _statusDot   = document.getElementById('status-dot');
+const _statusText  = document.getElementById('status-text');
+const _storageFill = document.getElementById('storage-fill');
+const _byteCount   = document.getElementById('byte-count');
+const _usedBytes   = document.getElementById('used-bytes');
+const _totalBytes  = document.getElementById('total-bytes');
+const _pctText     = document.getElementById('pct-text');
+const _editorLines = document.getElementById('editor-lines');
+const _editor      = document.getElementById('editor');
+const _hexView     = document.getElementById('hex-view');
+const _paneEditor  = document.getElementById('pane-editor');
+const _paneHex     = document.getElementById('pane-hex');
+const _infoPort    = document.getElementById('info-port');
+const _infoUid     = document.getElementById('info-uid');
+const _infoStatus  = document.getElementById('info-status');
+const _infoChunk   = document.getElementById('info-chunk');
+const _chunkIndex  = document.getElementById('chunk-index');
+const _chunkTotal  = document.getElementById('chunk-total');
+const _cardTypeEl  = document.getElementById('runtime-card-type');
+const _envEl       = document.getElementById('runtime-env-label');
+const _appName     = document.getElementById('appName');
+const _tabs        = document.querySelectorAll('.tab');
+const _btns        = document.querySelectorAll('.btn');
+
+_editor.addEventListener('input', e => {
+  updateByteCount(e.target.value);
+  if (currentTab === 'hex') renderHex(e.target.value);
+});
+
+_editor.addEventListener('scroll', () => {
+  syncEditorLineScroll();
+});
 
 updateByteCount('');
-document.getElementById("appName").textContent = appName;
+_appName.textContent = appName;
 log(`${appName} ready.`, 'info');
 updateRuntimeLabels(null);
 log('Ctrl+D = Read · Ctrl+R = Read · Ctrl+S = Write', 'info');
@@ -387,4 +406,3 @@ window.addEventListener('beforeunload', () => {
     removeLogListener = null;
   }
 });
-
