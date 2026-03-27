@@ -666,15 +666,16 @@ async function readCard() {
   const { payloadSize, chunkIndex, totalChunks } = meta;
   const blocksNeeded = Math.ceil(payloadSize / 16);
 
-  let payload = Buffer.alloc(0);
+  const chunks = [];
   for (let i = 0; i < blocksNeeded; i++) {
     const blkNum = DATA_BLOCKS[i];
     const hex    = blocks[String(blkNum)];
     if (!hex || hex.length < 32) {
       throw new Error(`Block ${blkNum} missing or unreadable from dump.`);
     }
-    payload = Buffer.concat([payload, Buffer.from(hex.slice(0, 32), 'hex')]);
+    chunks.push(Buffer.from(hex.slice(0, 32), 'hex'));
   }
+  const payload = Buffer.concat(chunks);
 
   return {
     content:     payload.slice(0, payloadSize).toString('utf8'),

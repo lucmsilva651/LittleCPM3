@@ -9,8 +9,10 @@ let currentTab = 'editor';
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
+const _enc = new TextEncoder();
+
 function byteLen(str) {
-  return new TextEncoder().encode(str).length;
+  return _enc.encode(str).length;
 }
 
 function now() {
@@ -53,12 +55,12 @@ function setStatus(state, text) {
 function setBusy(msg) {
   setStatus('busy', msg);
   setOverlay(true, msg);
-  document.querySelectorAll('.btn').forEach(b => b.disabled = true);
+  _btns.forEach(b => b.disabled = true);
 }
 
 function setIdle() {
   setOverlay(false);
-  document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+  _btns.forEach(b => b.disabled = false);
 }
 
 function explainPm3Error(errText) {
@@ -143,7 +145,7 @@ function renderHex(str) {
     view.innerHTML = '<span class="hex-empty">No content — write something in the Editor tab.</span>';
     return;
   }
-  const bytes = new TextEncoder().encode(str);
+  const bytes = _enc.encode(str);
   let html = '';
   for (let i = 0; i < bytes.length; i += 16) {
     const row = bytes.slice(i, i + 16);
@@ -358,6 +360,9 @@ document.addEventListener('keydown', e => {
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
+// Module scripts are deferred — DOM is fully parsed before this runs.
+
+const _btns = document.querySelectorAll('.btn');
 
 updateByteCount('');
 document.getElementById("appName").textContent = appName;
