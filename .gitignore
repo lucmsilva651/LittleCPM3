@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Logs and diagnostics
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+report.*.json
+
+# Runtime temp / pid
+*.pid
+*.pid.lock
+*.seed
+
+# Build artifacts (Electron/Node)
+dist/
+out/
+release/
+build/
+*.asar
+
+# Coverage and tooling caches
+coverage/
+.nyc_output/
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode-test/
+
+# Package manager caches
+.npm/
+.pnpm-store/
+
+# PM3 generated artifacts (if created inside repo)
+hf-mf-*-dump-*.json
+hf-mf-*-dump-*.bin
+hf-mf-*-key-*.bin

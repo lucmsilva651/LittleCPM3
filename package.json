@@ -1,0 +1,18 @@
+{
+  "name": "littlecpm3",
+  "packageName": "LittleCPM3",
+  "version": "1.0.0",
+  "description": "Store and retrieve code from MIFARE Classic cards via Proxmark3",
+  "main": "src/electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "engines": {
+    "node": ">=21"
+  },
+  "dependencies": {
+    "electron": "^41.0.0"
+  },
+  "devDependencies": {}
+}

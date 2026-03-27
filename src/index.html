@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="styles/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Titlebar -->
+      <div id="titlebar">
+        <div class="logo">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <rect x="2" y="2" width="20" height="20" rx="2" />
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          </svg>
+          <div>
+            <div class="logo-text" id="appName"></div>
+            <div class="logo-sub" id="runtime-card-type">
+              Waiting for card...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-label">Storage</div>
+          <div class="storage-bar-wrap">
+            <div class="storage-bar-fill" id="storage-fill"></div>
+          </div>
+          <div class="storage-numbers">
+            <div class="storage-usage">
+              <span id="used-bytes">0</span> /
+              <span id="total-bytes">720</span> B
+            </div>
+            &nbsp;<span id="pct-text" style="color: var(--text-dim)">0%</span>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-label">Card Info</div>
+          <div class="info-row">
+            <span class="info-key">uid</span>
+            <span class="info-val amber" id="info-uid">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-key">port</span>
+            <span class="info-val" id="info-port">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-key">status</span>
+            <span class="info-val green" id="info-status">—</span>
+          </div>
+          <div class="info-row">
+            <span class="info-key">chunk</span>
+            <span class="info-val" id="info-chunk">—</span>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-label">Actions</div>
+          <div class="btn-list">
+            <div class="side-btn">
+              <button class="btn primary" id="btn-read">
+                <span class="btn-icon">↓</span> Read Card
+              </button>
+              <button class="btn primary" id="btn-write">
+                <span class="btn-icon">↑</span> Write Card
+              </button>
+            </div>
+            <button class="btn danger" id="btn-wipe">
+              <span class="btn-icon">✕</span> Wipe Card
+            </button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-label">Multi-Card (chunk)</div>
+          <div class="chunk-nav">
+            <div class="chunk-label">For large payloads split across cards</div>
+            <div class="chunk-controls">
+              <span class="chunk-label">Card</span>
+              <input
+                type="number"
+                id="chunk-index"
+                value="0"
+                min="0"
+                max="254"
+              />
+              <span class="chunk-label">of</span>
+              <input
+                type="number"
+                id="chunk-total"
+                value="1"
+                min="1"
+                max="255"
+              />
+            </div>
+            <button class="btn" id="btn-split">
+              <span class="btn-icon">⊕</span> Split editor content
+            </button>
+          </div>
+        </div>
+
+        <div class="sidebar-spacer"></div>
+
+        <div
+          class="sidebar-section"
+          style="
+            font-family: var(--mono);
+            font-size: 9px;
+            color: var(--text-faint);
+            letter-spacing: 0.06em;
+          "
+          id="runtime-env-label"
+        >
+          720 B/card · waiting for device
+        </div>
+      </div>
+
+      <!-- Main -->
+      <div id="main">
+        <div class="tabs">
+          <button class="tab active" id="tab-editor">
+            EDITOR
+          </button>
+          <button class="tab" id="tab-hex">HEX VIEW</button>
+        </div>
+
+        <div class="editor-wrap" id="pane-editor">
+          <div class="editor-toolbar">
+            <span class="tl-label">Content</span>
+            <div class="tl-spacer"></div>
+            <span class="byte-count" id="byte-count">0 / 720 B</span>
+          </div>
+          <div class="editor-content">
+            <div id="editor-lines-wrap" aria-hidden="true">
+              <pre id="editor-lines">1</pre>
+            </div>
+            <textarea
+              id="editor"
+              spellcheck="false"
+              placeholder="Paste or type content here, then press 'Write to Card'..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="editor-wrap" id="pane-hex" style="display: none">
+          <div class="editor-toolbar">
+            <span class="tl-label">Hex View</span>
+            <div class="tl-spacer"></div>
+            <span
+              style="
+                font-family: var(--mono);
+                font-size: 10px;
+                color: var(--text-faint);
+              "
+              >16 B / row</span
+            >
+          </div>
+          <div id="hex-view">
+            <span class="hex-empty"
+              >No content — write something in the Editor tab.</span
+            >
+          </div>
+        </div>
+
+        <div id="log-panel"></div>
+      </div>
+    </div>
+
+    <!-- Overlay -->
+    <div id="overlay">
+      <div class="spinner"></div>
+      <div class="overlay-msg" id="overlay-msg">Working...</div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast"></div>
+
+    <script type="module" src="scripts/renderer.js"></script>
+  </body>
+</html>
