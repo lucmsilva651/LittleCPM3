@@ -540,7 +540,7 @@ body {
   display: none;
   position: fixed;
   inset: 0;
-  background: #0a0a0acc;
+  background: #0a0a0aec;
   z-index: 100;
   align-items: center;
   justify-content: center;
@@ -569,6 +569,7 @@ body {
 
 .overlay-msg {
   font-family: var(--mono);
+  font-weight: bold;
   font-size: 12px;
   color: var(--amber);
   letter-spacing: 0.1em;
