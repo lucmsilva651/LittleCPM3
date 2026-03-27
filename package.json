@@ -12,7 +12,7 @@
     "node": ">=21"
   },
   "dependencies": {
-    "electron": "^41.1.0",
-    "slint-ui": "^1.15.1"
-  }
+    "electron": "^41.1.0"
+  },
+  "devDependencies": {}
 }

@@ -1,5 +1,4 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
-const { spawn } = require('child_process');
 const path = require('path');
 const pm3 = require('../utils/pm3.js');
 
@@ -7,90 +6,10 @@ let win;
 const winWidth = 950;
 const winHeight = 650;
 
-// ─── Slint child-process management ──────────────────────────────────────────
-
-/** Currently running Slint child process, or null. */
-let slintProc = null;
-
-/**
- * Spawn a new slint-runner child process that will compile and display
- * a Slint component from `code`.  Messages are exchanged over stdin/stdout
- * as newline-delimited JSON.
- *
- * @param {string} code  Slint source code read from the NFC card.
- */
-function launchSlintComponent(code) {
-  // Kill any previously running Slint window first
-  closeSlintComponent();
-
-  const runnerPath = path.join(__dirname, 'slint-runner.js');
-  slintProc = spawn(process.execPath, [runnerPath], {
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
-
-  slintProc.stdout.setEncoding('utf8');
-  let buf = '';
-  slintProc.stdout.on('data', (chunk) => {
-    buf += chunk;
-    let nl;
-    while ((nl = buf.indexOf('\n')) !== -1) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line) continue;
-      let msg;
-      try { msg = JSON.parse(line); } catch (_) { continue; }
-
-      if (msg.type === 'ready') {
-        // Runner is up — send the code to compile and run
-        slintProc.stdin.write(JSON.stringify({ type: 'run', code }) + '\n');
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('slint:status', { state: 'running' });
-        }
-      } else if (msg.type === 'error') {
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('slint:status', { state: 'error', message: msg.message });
-        }
-      } else if (msg.type === 'closed') {
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('slint:status', { state: 'closed' });
-        }
-        slintProc = null;
-      }
-    }
-  });
-
-  slintProc.stderr.on('data', (chunk) => {
-    const msg = chunk.toString('utf8').trim();
-    if (msg && win && !win.isDestroyed()) {
-      win.webContents.send('slint:status', { state: 'error', message: msg });
-    }
-  });
-
-  slintProc.on('close', () => {
-    slintProc = null;
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('slint:status', { state: 'closed' });
-    }
-  });
-}
-
-/**
- * Send a close message to the running Slint child process (if any).
- */
-function closeSlintComponent() {
-  if (!slintProc) return;
-  try {
-    slintProc.stdin.write(JSON.stringify({ type: 'close' }) + '\n');
-  } catch (_) {}
-  // Force-kill after a short grace period
-  const proc = slintProc;
-  setTimeout(() => {
-    try { proc.kill('SIGKILL'); } catch (_) {}
-  }, 2000);
-  slintProc = null;
-}
-
 function createWindow() {
+  const titleBarOverlay = {
+  };
+
   win = new BrowserWindow({
     width: winWidth,
     height: winHeight,
@@ -123,10 +42,7 @@ function createWindow() {
 }
 
 app.whenReady().then(createWindow);
-app.on('window-all-closed', () => {
-  closeSlintComponent();
-  app.quit();
-});
+app.on('window-all-closed', () => app.quit());
 
 // ─── IPC handlers ─────────────────────────────────────────────────────────────
 
@@ -153,14 +69,3 @@ ipcMain.handle('pm3:split',  wrap((_, content) => pm3.splitIntoChunks(content)))
 ipcMain.handle('pm3:write',  wrap((_, content, idx = 0, total = 1) =>
   pm3.writeCard(content, idx, total)
 ));
-
-// Slint component control
-ipcMain.handle('slint:run', (_, code) => {
-  launchSlintComponent(code);
-  return { ok: true };
-});
-
-ipcMain.handle('slint:close', () => {
-  closeSlintComponent();
-  return { ok: true };
-});

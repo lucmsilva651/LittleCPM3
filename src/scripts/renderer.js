@@ -7,10 +7,6 @@ const appName = pkg.packageName;
 const MAX_BYTES = 720;
 let currentTab = 'editor';
 
-// ── Scan state ────────────────────────────────────────────────────────────────
-/** Whether a Slint component window is currently open. */
-let _slintRunning = false;
-
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
 const _enc = new TextEncoder();
@@ -60,70 +56,6 @@ function setBusy(msg) {
 function setIdle() {
   setOverlay(false);
   _btns.forEach(b => b.disabled = false);
-}
-
-// ─── Slint content detection ──────────────────────────────────────────────────
-
-/**
- * Heuristically determine if a string looks like Slint source code.
- * Matches both `component Foo { }` and `export component Foo { }` at the
- * start of a line (ignoring leading whitespace), which is the standard form
- * for Slint top-level component declarations.
- *
- * @param {string} content
- * @returns {boolean}
- */
-function looksLikeSlint(content) {
-  if (!content || typeof content !== 'string') return false;
-  return /^\s*(?:export\s+)?component\s+\w/m.test(content);
-}
-
-// ─── Slint overlay ────────────────────────────────────────────────────────────
-
-/**
- * Show or hide the Slint component overlay panel.
- * @param {boolean} visible
- */
-function setSlintOverlay(visible) {
-  if (!_slintOverlay) return;
-  _slintOverlay.classList.toggle('visible', visible);
-  _slintOverlay.setAttribute('aria-hidden', String(!visible));
-}
-
-/**
- * Update the status message shown inside the Slint overlay.
- * @param {string} msg
- * @param {'running'|'error'|''} type
- */
-function setSlintStatus(msg, type = '') {
-  if (!_slintStatusMsg) return;
-  _slintStatusMsg.textContent = msg;
-  _slintStatusMsg.className = 'slint-status-msg' + (type ? ` ${type}` : '');
-}
-
-/**
- * Compile and display a Slint component from the given source code.
- * Shows the Slint overlay and delegates rendering to the main process.
- *
- * @param {string} code  Slint source read from the NFC card.
- */
-async function launchSlintFromContent(code) {
-  if (!window.slint) {
-    log('✗ Slint runtime not available in this build.', 'error');
-    return;
-  }
-
-  _slintRunning = true;
-  setSlintOverlay(true);
-  setSlintStatus('Compiling and launching Slint component…', '');
-
-  const res = await window.slint.run(code);
-  if (!res || !res.ok) {
-    setSlintStatus('Failed to start Slint runner: ' + (res && res.error ? res.error : 'unknown error'), 'error');
-    log('✗ Slint launch failed: ' + (res && res.error || 'unknown'), 'error');
-    _slintRunning = false;
-  }
-  // Further status updates come via the slint:status event (see init section)
 }
 
 function explainPm3Error(errText) {
@@ -269,30 +201,20 @@ function updateRuntimeLabels(data) {
 }
 
 function bindUiActions() {
-  const btnRead  = document.getElementById('btn-read');
+  const btnRead = document.getElementById('btn-read');
   const btnWrite = document.getElementById('btn-write');
-  const btnWipe  = document.getElementById('btn-wipe');
+  const btnWipe = document.getElementById('btn-wipe');
   const btnSplit = document.getElementById('btn-split');
-  const btnSlintClose = document.getElementById('btn-slint-close');
   const tabEditor = document.getElementById('tab-editor');
-  const tabHex    = document.getElementById('tab-hex');
+  const tabHex = document.getElementById('tab-hex');
 
-  if (btnRead)  btnRead.addEventListener('click', doRead);
+  if (btnRead) btnRead.addEventListener('click', doRead);
   if (btnWrite) btnWrite.addEventListener('click', doWrite);
-  if (btnWipe)  btnWipe.addEventListener('click', doWipe);
+  if (btnWipe) btnWipe.addEventListener('click', doWipe);
   if (btnSplit) btnSplit.addEventListener('click', doSplit);
 
-  // Close the Slint window
-  if (btnSlintClose) btnSlintClose.addEventListener('click', async () => {
-    if (window.slint) await window.slint.close();
-    setSlintOverlay(false);
-    setSlintStatus('');
-    _slintRunning = false;
-    log('[slint] Component closed.', 'info');
-  });
-
   if (tabEditor) tabEditor.addEventListener('click', () => setTab('editor', tabEditor));
-  if (tabHex)    tabHex.addEventListener('click',    () => setTab('hex',    tabHex));
+  if (tabHex) tabHex.addEventListener('click', () => setTab('hex', tabHex));
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -328,12 +250,6 @@ async function doRead() {
   setStatus('ok', 'read ok');
   log(`✓ Read ${payloadSize}B — chunk ${chunkIndex + 1}/${totalChunks}`, 'ok');
   toast(`Read ${payloadSize} bytes`, 'ok');
-
-  // Check for Slint code and execute it
-  if (looksLikeSlint(content)) {
-    log('[slint] Slint code detected on card — launching component…', 'action');
-    await launchSlintFromContent(content);
-  }
 }
 
 async function doWrite() {
@@ -458,10 +374,6 @@ const _appName     = document.getElementById('appName');
 const _tabs        = document.querySelectorAll('.tab');
 const _btns        = document.querySelectorAll('.btn');
 
-// Slint overlay elements
-const _slintOverlay   = document.getElementById('slint-overlay');
-const _slintStatusMsg = document.getElementById('slint-status-msg');
-
 _editor.addEventListener('input', e => {
   updateByteCount(e.target.value);
   if (currentTab === 'hex') renderHex(e.target.value);
@@ -479,36 +391,18 @@ log('Ctrl+D = Read · Ctrl+R = Read · Ctrl+S = Write', 'info');
 bindUiActions();
 syncEditorLineScroll();
 
-// ── Subscribe to events ───────────────────────────────────────────────────────
-const cleanupFns = [];
-
-if (window.pm3) {
-  if (typeof window.pm3.onLog === 'function') {
-    cleanupFns.push(window.pm3.onLog((msg) => {
-      if (typeof msg === 'string' && msg.trim()) log(msg, 'info');
-    }));
-  }
-}
-
-// ── Subscribe to Slint status events ─────────────────────────────────────────
-if (window.slint && typeof window.slint.onStatus === 'function') {
-  cleanupFns.push(window.slint.onStatus((status) => {
-    if (status.state === 'running') {
-      setSlintStatus('Slint component is running in a separate window.\nClose that window or click the button below to dismiss this panel.', 'running');
-    } else if (status.state === 'error') {
-      setSlintStatus('Error: ' + (status.message || 'unknown Slint error'), 'error');
-      log('✗ [slint] ' + (status.message || 'unknown error'), 'error');
-      toast('Slint error — see overlay for details.', 'error');
-      _slintRunning = false;
-    } else if (status.state === 'closed') {
-      setSlintOverlay(false);
-      setSlintStatus('');
-      _slintRunning = false;
-      log('[slint] Component window closed.', 'info');
+let removeLogListener = null;
+if (window.pm3 && typeof window.pm3.onLog === 'function') {
+  removeLogListener = window.pm3.onLog((msg) => {
+    if (typeof msg === 'string' && msg.trim()) {
+      log(msg, 'info');
     }
-  }));
+  });
 }
 
 window.addEventListener('beforeunload', () => {
-  cleanupFns.forEach(fn => { if (typeof fn === 'function') fn(); });
+  if (typeof removeLogListener === 'function') {
+    removeLogListener();
+    removeLogListener = null;
+  }
 });
