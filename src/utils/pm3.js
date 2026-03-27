@@ -758,6 +758,38 @@ let _scanTimer = null;
 let _scanReading = false;
 
 /**
+ * True while a user-triggered manual operation (read / write / wipe) holds
+ * the serial port.  The scan tick checks this flag and skips rather than
+ * spawning a conflicting proxmark3 process.
+ */
+let _portBusy = false;
+
+/**
+ * Promise that resolves when the currently-running scan tick (if any)
+ * finishes.  Manual operations await this before touching the port so they
+ * don't collide with an in-flight hf search or automatic card read.
+ */
+let _scanTickDone = Promise.resolve();
+
+/**
+ * Call this before every user-triggered (manual) port operation.
+ * Sets the busy flag so the scan loop skips the next ticks, then waits
+ * for any currently-running scan tick to complete before returning.
+ */
+async function beginManualOp() {
+  _portBusy = true;
+  await _scanTickDone;
+}
+
+/**
+ * Call this after every user-triggered port operation finishes (or fails).
+ * Clears the busy flag so the scan loop can resume on its next timer tick.
+ */
+function endManualOp() {
+  _portBusy = false;
+}
+
+/**
  * Perform a lightweight card-presence check using `hf search`.
  * Returns true when any HF tag is detected, without fully reading it.
  *
@@ -794,7 +826,15 @@ function startContinuousScan(onResult, onError, intervalMs = 4000) {
   emitLog('[scan] continuous NFC scan started');
 
   const tick = async () => {
-    if (_scanReading) return; // Don't overlap with an in-progress read
+    // Skip if a manual operation (read/write/wipe) is using the port,
+    // or if a previous auto-read is still in progress.
+    // Reset _scanTickDone to an already-resolved promise so that a
+    // concurrently-called beginManualOp() does not stall waiting for a
+    // tick that never actually ran.
+    if (_scanReading || _portBusy) {
+      _scanTickDone = Promise.resolve();
+      return;
+    }
 
     let port;
     try {
@@ -808,30 +848,41 @@ function startContinuousScan(onResult, onError, intervalMs = 4000) {
       return;
     }
 
-    let present = false;
-    try {
-      present = await scanForCardPresence(port);
-    } catch (err) {
-      // Transient hardware error — skip this tick silently
-      emitLog(`[scan] presence check error: ${err.message}`);
-      return;
-    }
+    // Wrap the rest of the tick in its own promise and expose it via
+    // _scanTickDone so that beginManualOp() can wait for this tick to
+    // finish before letting a manual operation acquire the port.
+    const thisTick = (async () => {
+      let present = false;
+      try {
+        present = await scanForCardPresence(port);
+      } catch (err) {
+        // Transient hardware error — skip this tick silently
+        emitLog(`[scan] presence check error: ${err.message}`);
+        return;
+      }
 
-    if (!present) return;
+      if (!present) return;
 
-    // A card was detected — pause the loop and do a full read
-    _scanReading = true;
-    emitLog('[scan] card detected — performing full read');
+      // A card was detected — pause the loop and do a full read
+      _scanReading = true;
+      emitLog('[scan] card detected — performing full read');
 
-    try {
-      const result = await readCard();
-      if (typeof onResult === 'function') onResult(result);
-    } catch (err) {
-      emitLog(`[scan] read error: ${err.message}`);
-      if (typeof onError === 'function') onError(err);
-    } finally {
-      _scanReading = false;
-    }
+      try {
+        const result = await readCard();
+        if (typeof onResult === 'function') onResult(result);
+      } catch (err) {
+        emitLog(`[scan] read error: ${err.message}`);
+        if (typeof onError === 'function') onError(err);
+      } finally {
+        _scanReading = false;
+      }
+    })();
+
+    // Assign the swallowed promise first so beginManualOp() always has a
+    // settled-or-pending promise to await regardless of when it is called.
+    const caught = thisTick.catch(() => {});
+    _scanTickDone = caught;
+    await thisTick;
   };
 
   // Run the first tick after a short delay so the caller has time to
@@ -867,5 +918,7 @@ module.exports = {
   wipeCard,
   splitIntoChunks,
   startContinuousScan,
-  stopContinuousScan
+  stopContinuousScan,
+  beginManualOp,
+  endManualOp
 };

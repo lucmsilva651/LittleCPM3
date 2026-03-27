@@ -177,6 +177,10 @@ app.on('window-all-closed', () => {
 
 function wrap(fn) {
   return async (...args) => {
+    // Pause the auto-scan loop and wait for any in-flight scan tick to
+    // finish before the manual operation touches the serial port.
+    // This prevents "serial port is claimed by another process" errors.
+    await pm3.beginManualOp();
     try {
       return { ok: true, data: await fn(...args) };
     } catch (e) {
@@ -188,6 +192,8 @@ function wrap(fn) {
       if (typeof e?.code !== 'undefined') payload.code = e.code;
       if (process.argv.includes('--dev') && e?.stack) payload.stack = e.stack;
       return payload;
+    } finally {
+      pm3.endManualOp();
     }
   };
 }

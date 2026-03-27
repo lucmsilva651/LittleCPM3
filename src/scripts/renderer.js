@@ -89,15 +89,16 @@ function setScanIndicator(state, label) {
 
 /**
  * Heuristically determine if a string looks like Slint source code.
- * Matches both `component Foo { }` and `export component Foo { }` forms.
+ * Matches both `component Foo { }` and `export component Foo { }` at the
+ * start of a line (ignoring leading whitespace), which is the standard form
+ * for Slint top-level component declarations.
  *
  * @param {string} content
  * @returns {boolean}
  */
 function looksLikeSlint(content) {
   if (!content || typeof content !== 'string') return false;
-  // At minimum, Slint code must contain a component declaration
-  return /\bcomponent\b/.test(content);
+  return /^\s*(?:export\s+)?component\s+\w/m.test(content);
 }
 
 // ─── Slint overlay ────────────────────────────────────────────────────────────
